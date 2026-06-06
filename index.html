@@ -1,741 +1,568 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>happy-birthday</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🛸 天空猎手 · 昼夜飞碟</title>
+  <style>
+    :root { --game-width: 400px; --game-height: 680px; --bg: #1a1a2e; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a14;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    .game-wrapper {
+      position: relative;
+      width: min(420px, 95vw);
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    .game-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background: rgba(20, 20, 40, 0.85);
+      border-radius: 16px 16px 0 0;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: none;
+    }
+    .score-display { display: flex; align-items: center; gap: 10px; }
+    .score-label { color: #8899aa; font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; }
+    .score-value {
+      color: #ffcc00;
+      font-size: 1.8rem;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      text-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
+      transition: transform 0.15s ease;
+      min-width: 50px;
+      text-align: center;
+    }
+    .score-value.pulse { animation: scorePulse 0.35s ease-out; }
+    @keyframes scorePulse { 0% { transform: scale(1.4); color: #fff; } 100% { transform: scale(1); color: #ffcc00; } }
+    .combo-display { display: flex; align-items: center; gap: 6px; opacity: 0; transition: opacity 0.3s ease; }
+    .combo-display.active { opacity: 1; }
+    .combo-text { color: #ff6b35; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.04em; }
+    .combo-count { color: #ff4500; font-size: 1.4rem; font-weight: 900; text-shadow: 0 0 15px rgba(255, 69, 0, 0.6); }
 
-        body {
-            margin: 0;
-            overflow-x: hidden;
-            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
-            color: white;
-            font-family: 'Arial', sans-serif;
-            overflow-y: hidden;
-        }
+    /* 昼夜进度条 */
+    .day-night-bar {
+      width: 80px; height: 10px;
+      background: linear-gradient(to right, #1a1a3e, #87CEEB);
+      border-radius: 5px;
+      position: relative;
+      margin-left: auto;
+      overflow: visible;
+    }
+    .day-night-indicator {
+      position: absolute;
+      width: 14px; height: 14px;
+      background: gold;
+      border-radius: 50%;
+      top: -2px;
+      left: 0;
+      transform: translateX(-50%);
+      box-shadow: 0 0 8px rgba(255,215,0,0.8);
+      transition: left 0.08s linear;
+    }
 
-        body.scroll-enabled {
-            overflow-y: auto;
-        }
-
-        canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 1;
-        }
-
-        #bt {
-            position: fixed;
-            top: 70%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0);
-            margin: 0;
-            padding: 18px 45px;
-            background: linear-gradient(135deg, #ffffff 0%, #e6f7ff 30%, #b3e0ff 70%, #4db8ff 100%);
-            color: #0066cc;
-            border: none;
-            border-radius: 50px;
-            font-size: 20px;
-            font-weight: bold;
-            cursor: pointer;
-            opacity: 0;
-            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            backdrop-filter: blur(10px);
-            box-shadow: 
-                0 8px 25px rgba(77, 184, 255, 0.4),
-                0 0 40px rgba(179, 224, 255, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.8);
-            z-index: 1000;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
-        }
-
-        #bt.show {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-        }
-
-        #bt.hide {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0);
-            pointer-events: none;
-        }
-
-        #bt:hover {
-            background: linear-gradient(135deg, #ffffff 0%, #d9f2ff 30%, #99d6ff 70%, #3399ff 100%);
-            color: #004d99;
-            box-shadow: 
-                0 12px 35px rgba(77, 184, 255, 0.8),
-                0 0 60px rgba(179, 224, 255, 0.6),
-                0 0 100px rgba(128, 212, 255, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.9);
-            transform: translate(-50%, -50%) scale(1.1);
-        }
-
-        /* 历史事件区域 */
-        .history-section {
-            position: relative;
-            z-index: 2;
-            margin-top: 100vh;
-            padding: 100px 20px;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(15px);
-            min-height: 100vh;
-            border-top: 3px solid rgba(77, 184, 255, 0.3);
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .section-title {
-            text-align: center;
-            font-size: 4rem;
-            margin-bottom: 80px;
-            background: linear-gradient(135deg, #4db8ff, #ffffff, #ff69b4);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 50px rgba(77, 184, 255, 0.7);
-            position: relative;
-        }
-
-        .section-title::after {
-            content: '';
-            position: absolute;
-            bottom: -20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100px;
-            height: 3px;
-            background: linear-gradient(90deg, #4db8ff, #ff69b4);
-            border-radius: 2px;
-        }
-
-        .events-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-            gap: 40px;
-            margin-top: 60px;
-        }
-
-        .event-card {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-            border-radius: 25px;
-            padding: 35px;
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            transition: all 0.4s ease;
-            position: relative;
-            overflow: hidden;
-            min-height: 220px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .event-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-            transition: left 0.6s ease;
-        }
-
-        .event-card:hover::before {
-            left: 100%;
-        }
-
-        .event-card:hover {
-            transform: translateY(-12px) scale(1.02);
-            box-shadow: 
-                0 25px 50px rgba(77, 184, 255, 0.4),
-                0 0 80px rgba(77, 184, 255, 0.2);
-            border-color: rgba(77, 184, 255, 0.6);
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.08) 100%);
-        }
-
-        .event-year {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #4db8ff;
-            margin-bottom: 25px;
-            text-shadow: 0 0 15px rgba(77, 184, 255, 0.7);
-            text-align: center;
-            position: relative;
-        }
-
-        .event-year::after {
-            content: '✨';
-            position: absolute;
-            right: -30px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 1.2rem;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .event-card:hover .event-year::after {
-            opacity: 1;
-        }
-
-        .event-content {
-            font-size: 1.15rem;
-            line-height: 1.7;
-            color: rgba(255, 255, 255, 0.95);
-            text-align: center;
-            position: relative;
-            z-index: 2;
-        }
-
-        /* 特殊事件卡片 */
-        .special-event-card {
-            background: linear-gradient(135deg, rgba(255, 105, 180, 0.1) 0%, rgba(255, 182, 193, 0.05) 100%);
-            border-radius: 25px;
-            padding: 35px;
-            backdrop-filter: blur(20px);
-            border: 2px dashed rgba(255, 105, 180, 0.4);
-            transition: all 0.4s ease;
-            position: relative;
-            overflow: hidden;
-            min-height: 180px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-        }
-
-        .special-event-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #ff69b4, #ffb6c1, #ff69b4);
-            background-size: 200% 100%;
-            animation: shimmer 3s infinite;
-        }
-
-        @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-        }
-
-        .special-event-card:hover {
-            transform: translateY(-8px) scale(1.03);
-            box-shadow: 
-                0 20px 40px rgba(255, 105, 180, 0.5),
-                0 0 60px rgba(255, 182, 193, 0.3);
-            border-color: rgba(255, 105, 180, 0.7);
-            background: linear-gradient(135deg, rgba(255, 105, 180, 0.15) 0%, rgba(255, 182, 193, 0.08) 100%);
-        }
-
-        .special-event-year {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #ff69b4;
-            margin-bottom: 20px;
-            text-shadow: 0 0 15px rgba(255, 105, 180, 0.7);
-            text-align: center;
-        }
-
-        .special-event-prompt {
-            font-size: 1.1rem;
-            color: rgba(255, 255, 255, 0.8);
-            text-align: center;
-            font-style: italic;
-            transition: all 0.5s ease;
-        }
-
-        .special-event-content {
-            font-size: 1.3rem;
-            line-height: 1.6;
-            color: #ff69b4;
-            text-align: center;
-            font-weight: bold;
-            margin-top: 20px;
-            opacity: 0;
-            transform: translateY(25px) scale(0.9);
-            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            text-shadow: 0 0 20px rgba(255, 105, 180, 0.5);
-        }
-
-        .special-event-content.show {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
-
-        /* 滚动提示 */
-        .scroll-hint {
-            position: fixed;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #4db8ff;
-            font-size: 1.1rem;
-            opacity: 0;
-            transition: opacity 0.5s ease;
-            z-index: 1000;
-            text-align: center;
-            pointer-events: none;
-        }
-
-        .scroll-hint.show {
-            opacity: 1;
-        }
-
-        .scroll-hint.hide {
-            opacity: 0;
-        }
-
-        .scroll-arrow {
-            display: block;
-            width: 25px;
-            height: 25px;
-            border-right: 3px solid #4db8ff;
-            border-bottom: 3px solid #4db8ff;
-            transform: rotate(45deg);
-            margin: 15px auto;
-            animation: bounce 2s infinite;
-        }
-
-        /* 气球样式 */
-        .balloon {
-            position: fixed;
-            bottom: -100px;
-            width: 45px;
-            height: 55px;
-            background: var(--balloon-color);
-            border-radius: 50%;
-            z-index: 9999;
-            animation: floatUp 8s ease-in forwards;
-            box-shadow: inset -8px -8px 15px rgba(0, 0, 0, 0.3);
-            filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.2));
-        }
-
-        .balloon::before {
-            content: '';
-            position: absolute;
-            bottom: -25px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 2px;
-            height: 35px;
-            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.3));
-        }
-
-        @keyframes floatUp {
-            0% {
-                transform: translateX(0) rotate(0deg);
-                opacity: 1;
-            }
-            100% {
-                transform: translateX(var(--drift)) translateY(-120vh) rotate(360deg);
-                opacity: 0;
-            }
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: rotate(45deg) translateY(0); }
-            50% { transform: rotate(45deg) translateY(-15px); }
-        }
-
-        /* 时间线装饰 */
-        .timeline {
-            position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 3px;
-            height: 100%;
-            background: linear-gradient(to bottom, transparent, #4db8ff, #ff69b4, transparent);
-            opacity: 0.3;
-        }
-
-        /* 防止在禁止滚动时通过其他方式滚动 */
-        .no-scroll {
-            position: fixed;
-            width: 100%;
-        }
-
-        /* 响应式设计 */
-        @media (max-width: 768px) {
-            .section-title {
-                font-size: 2.5rem;
-            }
-            
-            .events-grid {
-                grid-template-columns: 1fr;
-                gap: 25px;
-            }
-            
-            .event-card, .special-event-card {
-                padding: 25px;
-                min-height: 180px;
-            }
-        }
-    </style>
+    .game-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 10 / 17;
+      max-height: 75vh;
+      border-radius: 0;
+      overflow: hidden;
+      cursor: default;
+      background: #1a2a3a;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: none;
+      border-bottom: none;
+      touch-action: manipulation;
+    }
+    .game-container.scope-active { cursor: none; }
+    canvas#gameCanvas { display: block; width: 100%; height: 100%; border-radius: 0; }
+    .scope-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;
+      opacity: 0; transition: opacity 0.2s ease;
+    }
+    .scope-overlay.visible { opacity: 1; }
+    .btn-area {
+      width: 100%; padding: 12px 16px; background: rgba(20, 20, 40, 0.85);
+      border-radius: 0 0 16px 16px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1); border-top: none; display: flex; justify-content: center; gap: 12px;
+    }
+    .btn-scope {
+      position: relative; padding: 14px 32px; font-size: 1.05rem; font-weight: 700;
+      letter-spacing: 0.04em; border: none; border-radius: 50px; cursor: pointer; color: #fff;
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4), 0 2px 4px rgba(0,0,0,0.3);
+      transition: all 0.2s ease; outline: none; -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation; display: flex; align-items: center; gap: 8px;
+    }
+    .btn-scope:active {
+      transform: scale(0.94); box-shadow: 0 2px 8px rgba(231,76,60,0.5), 0 1px 2px rgba(0,0,0,0.3);
+      background: linear-gradient(135deg, #c0392b, #a93226);
+    }
+    .btn-scope.active {
+      background: linear-gradient(135deg, #27ae60, #1e8449);
+      box-shadow: 0 6px 20px rgba(39, 174, 96, 0.5), 0 2px 4px rgba(0,0,0,0.3);
+      animation: btnGlow 1.5s ease-in-out infinite;
+    }
+    @keyframes btnGlow {
+      0%,100%{ box-shadow: 0 6px 20px rgba(39,174,96,0.5), 0 2px 4px rgba(0,0,0,0.3); }
+      50%{ box-shadow: 0 8px 30px rgba(39,174,96,0.75), 0 2px 8px rgba(39,174,96,0.4); }
+    }
+    .btn-scope .icon { font-size: 1.4rem; transition: transform 0.3s ease; }
+    .btn-scope.active .icon { transform: rotate(15deg); }
+    .btn-scope .cooldown-ring {
+      position: absolute; top: -3px; left: -3px; right: -3px; bottom: -3px;
+      border-radius: 50px; border: 3px solid transparent; pointer-events: none; transition: border-color 0.15s ease;
+    }
+    .btn-scope.cooldown .cooldown-ring { border-color: rgba(255,255,255,0.5); animation: cooldownSpin 0.4s linear; }
+    @keyframes cooldownSpin { from { border-top-color: #fff; } to { border-top-color: transparent; } }
+    @media (max-width: 440px) {
+      .game-wrapper { width: 100vw; max-width: 100vw; }
+      .game-header { border-radius: 0; padding: 8px 12px; }
+      .btn-area { border-radius: 0; padding: 10px 12px; }
+      .game-container { border-radius: 0; border-left: none; border-right: none; max-height: 62vh; }
+      .btn-scope { padding: 12px 24px; font-size: 0.95rem; }
+      .score-value { font-size: 1.5rem; }
+    }
+    @media (min-width: 441px) and (max-width: 768px) { .game-container { max-height: 68vh; } }
+  </style>
 </head>
 <body>
-    <button id="bt">打开✨</button>
-    <div class="scroll-hint" id="scrollHint">
-        点击按钮打开
-        <span class="scroll-arrow"></span>
+<div class="game-wrapper">
+  <div class="game-header">
+    <div class="score-display">
+      <span class="score-label">🎯 得分</span>
+      <span class="score-value" id="scoreValue">0</span>
     </div>
-    <canvas id="canvas"></canvas>
+    <div class="day-night-bar">
+      <div class="day-night-indicator" id="dayNightIndicator"></div>
+    </div>
+    <div class="combo-display" id="comboDisplay">
+      <span class="combo-text">🔥 连击</span>
+      <span class="combo-count" id="comboCount">x1</span>
+    </div>
+  </div>
+  <div class="game-container" id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+    <div class="scope-overlay" id="scopeOverlay"></div>
+  </div>
+  <div class="btn-area">
+    <button class="btn-scope" id="btnScope">
+      <span class="icon">🔭</span>
+      <span id="btnScopeText">打开瞄准镜</span>
+      <span class="cooldown-ring"></span>
+    </button>
+  </div>
+</div>
 
-    <section class="history-section" id="historySection">
-        <div class="timeline"></div>
-        <div class="container">
-            <h2 class="section-title">历史上的今天 · 11月25日</h2>
-            <div class="events-grid" id="eventsGrid">
-                <!-- 事件将通过JavaScript动态添加 -->
-            </div>
-        </div>
-    </section>
+<script>
+  (function() {
+    // DOM
+    const gameContainer = document.getElementById('gameContainer');
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreValueEl = document.getElementById('scoreValue');
+    const comboDisplay = document.getElementById('comboDisplay');
+    const comboCountEl = document.getElementById('comboCount');
+    const btnScope = document.getElementById('btnScope');
+    const btnScopeText = document.getElementById('btnScopeText');
+    const scopeOverlay = document.getElementById('scopeOverlay');
+    const indicator = document.getElementById('dayNightIndicator');
 
-    <!-- 隐藏的音频元素 -->
-    <audio id="birthdayMusic" loop>
-        <source src="https://assets.mixkit.co/music/preview/mixkit-happy-birthday-balloon-583.mp3" type="audio/mpeg">
-    </audio>
+    // 音效引擎
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) {
+        try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { audioCtx = null; }
+      }
+      return audioCtx;
+    }
+    function playSound(freq, type, duration, volume=0.08, glideFreq=null, delay=0) {
+      const ac = getAudioContext();
+      if (!ac) return;
+      try {
+        const t = ac.currentTime + delay;
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, t);
+        if (glideFreq) osc.frequency.linearRampToValueAtTime(glideFreq, t + duration);
+        gain.gain.setValueAtTime(volume, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.start(t);
+        osc.stop(t + duration);
+      } catch(e) {}
+    }
+    function sfxShoot() {
+      playSound(150, 'sawtooth', 0.12, 0.08, 40);
+      playSound(800, 'square', 0.08, 0.06, 200);
+      playSound(1200, 'triangle', 0.05, 0.04, 800, 0.02);
+    }
+    function sfxHit() {
+      playSound(200, 'sawtooth', 0.15, 0.1, 60);
+      playSound(600, 'triangle', 0.1, 0.06);
+      for (let i = 0; i < 4; i++) {
+        playSound(2000 + Math.random()*2000, 'square', 0.04, 0.03, 3000 + Math.random()*2000, i*0.02);
+      }
+      playSound(500, 'sine', 0.12, 0.08, 200);
+    }
+    function sfxMiss() { playSound(100, 'triangle', 0.12, 0.04); playSound(80, 'sine', 0.08, 0.03); }
+    function sfxCombo() { playSound(1000, 'square', 0.06, 0.05); playSound(1400, 'square', 0.05, 0.04); }
 
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const button = document.getElementById('bt');
-        const historySection = document.getElementById('historySection');
-        const eventsGrid = document.getElementById('eventsGrid');
-        const scrollHint = document.getElementById('scrollHint');
-        const birthdayMusic = document.getElementById('birthdayMusic');
-        const body = document.body;
-        window.alert("建议使用横向显示器或横屏浏览，注意不要着急点击鼠标哦，可以刷新重新浏览页面的)  by moip222");
+    // 常量
+    const GAME_WIDTH = 400, GAME_HEIGHT = 680;
+    const BASE_HIT_RADIUS = 20;
+    const BASE_SHOOT_COOLDOWN = 0.35;
+    const BASE_POINTS = 10;
+    const NIGHT_VIS_RADIUS = 250;
+    let canvasScale = 1, canvasOffsetX = 0, canvasOffsetY = 0;
+    let score = 0, combo = 0, maxCombo = 0, comboTimer = null;
+    let scopeActive = false, scopeX = GAME_WIDTH/2, scopeY = GAME_HEIGHT/2;
+    let shootCooldown = 0;
+    let isPointerDown = false, pointerMoved = false, pointerStartX = 0, pointerStartY = 0;
+    const TAP_THRESHOLD = 12;
 
-        // 设置canvas尺寸为窗口大小
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+    let dayTime = 0.3;                 // 0-1 周期
+    const DAY_SPEED = 0.004;           // 昼夜速度
 
-        // 禁止滚动的函数
-        function disableScroll() {
-            body.style.overflowY = 'hidden';
-            body.classList.add('no-scroll');
-            
-            document.addEventListener('touchmove', preventDefault, { passive: false });
-            document.addEventListener('wheel', preventDefault, { passive: false });
-            document.addEventListener('keydown', preventKeyScroll);
+    let hitRadiusMultiplier = 1.0;
+    let cooldownMultiplier = 1.0;
+    let extraPoints = 0;
+    let nextUpgradeScore = 500;
+    let upgradeActive = false;
+
+    let targets = [], particles = [], clouds = [], floatingTexts = [];
+    let spawnAccum = 0, spawnInterval = 1.6, difficultyLevel = 1;
+
+    const TARGET_TYPES = [
+      { name: '红飞碟', color: '#e74c3c', lightColor: '#ff9999', size: 38, speedRange: [70, 120], points: BASE_POINTS, floatAmp: 20, floatFreq: 2.0 },
+      { name: '蓝飞碟', color: '#3498db', lightColor: '#99ccff', size: 38, speedRange: [55, 95], points: BASE_POINTS, floatAmp: 22, floatFreq: 1.8 },
+      { name: '绿飞碟', color: '#2ecc71', lightColor: '#99ffbb', size: 38, speedRange: [90, 150], points: BASE_POINTS, floatAmp: 18, floatFreq: 2.4 }
+    ];
+
+    function resizeCanvas() {
+      const cw = gameContainer.clientWidth, ch = gameContainer.clientHeight;
+      const ratio = GAME_WIDTH / GAME_HEIGHT;
+      let dw, dh;
+      if (cw / ch > ratio) { dh = ch; dw = dh * ratio; }
+      else { dw = cw; dh = dw / ratio; }
+      canvas.style.width = dw + 'px'; canvas.style.height = dh + 'px';
+      canvas.width = GAME_WIDTH; canvas.height = GAME_HEIGHT;
+      canvasScale = dw / GAME_WIDTH;
+      const rect = canvas.getBoundingClientRect();
+      canvasOffsetX = rect.left; canvasOffsetY = rect.top;
+    }
+    function getCanvasPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: Math.max(0, Math.min(GAME_WIDTH, (e.clientX - rect.left) / canvasScale)), y: Math.max(0, Math.min(GAME_HEIGHT, (e.clientY - rect.top) / canvasScale)) };
+    }
+    function getTouchPos(touch) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: Math.max(0, Math.min(GAME_WIDTH, (touch.clientX - rect.left) / canvasScale)), y: Math.max(0, Math.min(GAME_HEIGHT, (touch.clientY - rect.top) / canvasScale)) };
+    }
+    function dist(x1,y1,x2,y2) { return Math.sqrt((x1-x2)**2 + (y1-y2)**2); }
+
+    // 颜色插值
+    function lerpColor(c1, c2, f) {
+      const r = Math.round(c1[0] + (c2[0]-c1[0]) * f);
+      const g = Math.round(c1[1] + (c2[1]-c1[1]) * f);
+      const b = Math.round(c1[2] + (c2[2]-c1[2]) * f);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // 昼夜因子：0=白天，1=夜晚，过渡平滑
+    function getNightFactor() {
+      const t = dayTime;
+      if (t < 0.2) return 1;
+      if (t > 0.8) return 1;
+      if (t >= 0.3 && t <= 0.7) return 0;
+      if (t >= 0.2 && t < 0.3) return 1 - (t - 0.2) / 0.1;
+      if (t > 0.7 && t <= 0.8) return (t - 0.7) / 0.1;
+      return 0;
+    }
+
+    class Target {
+      constructor(typeIndex) {
+        const type = TARGET_TYPES[typeIndex];
+        this.typeIndex = typeIndex;
+        this.type = type;
+        this.x = GAME_WIDTH + type.size + Math.random() * 80;
+        this.y = 60 + Math.random() * (GAME_HEIGHT - 180);
+        this.baseY = this.y;
+        this.size = type.size;
+        this.speed = type.speedRange[0] + Math.random() * (type.speedRange[1] - type.speedRange[0]);
+        this.points = type.points + extraPoints;
+        this.floatAmp = type.floatAmp;
+        this.floatFreq = type.floatFreq;
+        this.floatOffset = Math.random() * Math.PI * 2;
+        this.alive = true;
+        this.wingPhase = Math.random() * Math.PI * 2;
+        this.falling = false;
+        this.fallSpeed = 0;
+        this.fallRotation = 0;
+        this.opacity = 1;
+        this.color = type.color;
+        this.lightColor = type.lightColor;
+      }
+      update(dt) {
+        if (!this.alive && this.falling) {
+          this.y += this.fallSpeed * dt;
+          this.fallSpeed += 400 * dt;
+          this.fallRotation += 500 * dt;
+          this.opacity -= 1.2 * dt;
+          return this.opacity > 0 && this.y <= GAME_HEIGHT + 60;
         }
-
-        // 允许滚动的函数
-        function enableScroll() {
-            body.style.overflowY = 'auto';
-            body.classList.remove('no-scroll');
-            body.classList.add('scroll-enabled');
-            
-            document.removeEventListener('touchmove', preventDefault);
-            document.removeEventListener('wheel', preventDefault);
-            document.removeEventListener('keydown', preventKeyScroll);
+        if (!this.alive) return false;
+        this.x -= this.speed * dt;
+        this.floatOffset += this.floatFreq * dt;
+        this.y = this.baseY + Math.sin(this.floatOffset) * this.floatAmp;
+        this.wingPhase += 8 * dt;
+        if (this.x < -60) { this.alive = false; return false; }
+        return true;
+      }
+      draw(ctx) {
+        if (scopeActive && getNightFactor() > 0.9) {
+          const d = dist(this.x, this.y, scopeX, scopeY);
+          if (d > NIGHT_VIS_RADIUS) return;
         }
-
-        function preventDefault(e) {
-            e.preventDefault();
+        if (!this.alive && this.falling) {
+          ctx.save(); ctx.globalAlpha = Math.max(0, this.opacity);
+          ctx.translate(this.x, this.y); ctx.rotate(this.fallRotation * Math.PI / 180);
+          this._drawUFO(ctx, 0, 0, this.size); ctx.restore();
+          return;
         }
-
-        function preventKeyScroll(e) {
-            const keys = [32, 33, 34, 35, 36, 37, 38, 39, 40];
-            if (keys.includes(e.keyCode)) {
-                e.preventDefault();
-            }
+        if (!this.alive) return;
+        ctx.save(); this._drawUFO(ctx, this.x, this.y, this.size); ctx.restore();
+        if (this.points >= 4) {
+          ctx.save(); ctx.globalAlpha = 0.25 + Math.sin(Date.now()/300)*0.15;
+          const glow = ctx.createRadialGradient(this.x,this.y,this.size*0.3,this.x,this.y,this.size*1.1);
+          glow.addColorStop(0,'rgba(255,255,200,0.8)'); glow.addColorStop(1,'rgba(255,200,50,0)');
+          ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(this.x,this.y,this.size*1.1,0,Math.PI*2); ctx.fill();
+          ctx.restore();
         }
-
-        disableScroll();
-
-        const historicalEvents = [
-            {
-                year: "1915年",
-                content: "在这一天，阿尔伯特·爱因斯坦在普鲁士科学院完成了他的广义相对论场方程的最终表述。这一理论彻底改变了人类对引力、时空和宇宙的理解，是现代物理学的基石之一，其影响深远，为后来的宇宙学、GPS技术等奠定了基础。"
-            },
-            {
-                year: "1950年",
-                content: "在朝鲜战争中，中国人民志愿军于11月25日发动了第二次战役（长津湖战役是其中一部分）。这次战役成功扭转了战局，将联合国军从鸭绿江边击退至三八线附近，奠定了朝鲜战争的战略格局，展现了保家卫国的决心与力量。"
-            },
-            {
-                year: "1975年",
-                content: "位于南美洲北部的苏里南在这一天正式脱离荷兰殖民统治，获得完全独立。对于一个国家而言，独立日是其历史上最光荣和正面的时刻之一，标志着其人民自主决定国家命运的开始。"
-            },
-            {
-                year: "1992年",
-                content: "虽然国家的解体常带有伤感色彩，但捷克斯洛伐克的“天鹅绒分离”是和平分手的典范。11月25日，联邦议会通过了《国家解体法》，同意捷克和斯洛伐克于1993年1月1日和平分离为两个独立主权国家。这一事件避免了暴力冲突，维护了地区的和平与稳定，被视为一次成功的政治和解。"
-            },
-            {
-                year: "1999年",
-                content: "联合国大会通过决议，将每年的11月25日定为“国际消除对妇女的暴力日”。这一决定极大地推动了全球范围内对妇女权益的关注和保护，鼓励各国采取措施，提高公众意识，共同反对和消除针对妇女的一切形式的暴力行为。"
-            }
-        ];
-
-        /**
-         * 粒子类 - 管理单个粒子的属性和行为
-         */
-        class Particle {
-            constructor(x, y) {
-                this.targetX = x;
-                this.targetY = y;
-                this.currentX = Math.random() * canvas.width;
-                this.currentY = Math.random() * canvas.height;
-                this.size = 2;
-                this.speed = 0.05;
-                this.color = `white`;
-                this.alpha = 1;
-            }
-            
-            update() {
-                this.currentX += (this.targetX - this.currentX) * this.speed;
-                this.currentY += (this.targetY - this.currentY) * this.speed;
-                this.alpha *= 0.995;
-            }
-            
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.currentX, this.currentY, this.size, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
-                ctx.fill();
-            }
-        }
-
-        let particles = [];
-
-        function createTextParticles(text) {
-            particles = [];
-            
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 100px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            for (let y = 0; y < canvas.height; y += 4) {
-                for (let x = 0; x < canvas.width; x += 4) {
-                    const index = (y * canvas.width + x) * 4;
-                    const alpha = data[index + 3];
-                    if (alpha > 128) {
-                        particles.push(new Particle(x, y));
-                    }
-                }
-            }
-        }
-
-        // 创建气球
-        function createBalloons() {
-            const balloonColors = [
-                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-                '#DDA0DD', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE',
-                '#85C1E9', '#F8C471', '#FF9FF3', '#54A0FF', '#00D2D3'
-            ];
-            
-            const balloonCount = 50;
-            
-            for (let i = 0; i < balloonCount; i++) {
-                setTimeout(() => {
-                    const balloon = document.createElement('div');
-                    balloon.className = 'balloon';
-                    
-                    const color = balloonColors[Math.floor(Math.random() * balloonColors.length)];
-                    balloon.style.setProperty('--balloon-color', color);
-                    
-                    const left = Math.random() * 100;
-                    const drift = (Math.random() - 0.5) * 400;
-                    balloon.style.left = left + '%';
-                    balloon.style.setProperty('--drift', drift + 'px');
-                    
-                    const size = 40 + Math.random() * 30;
-                    balloon.style.width = size + 'px';
-                    balloon.style.height = (size * 1.2) + 'px';
-                    
-                    const duration = 6 + Math.random() * 6;
-                    balloon.style.animationDuration = duration + 's';
-                    
-                    document.body.appendChild(balloon);
-                    
-                    setTimeout(() => {
-                        if (balloon.parentNode) {
-                            balloon.parentNode.removeChild(balloon);
-                        }
-                    }, duration * 1000);
-                    
-                }, i * 120);
-            }
-        }
-
-        // 播放生日快乐音乐
-        function playBirthdayMusic() {
-            birthdayMusic.volume = 0.25;
-            birthdayMusic.play().catch(e => {
-                console.log('自动播放被阻止，需要用户交互');
-            });
-        }
-
-        // 渲染历史事件
-        function renderHistoricalEvents() {
-            eventsGrid.innerHTML = '';
-            
-            // 渲染普通历史事件
-            historicalEvents.forEach(event => {
-                const eventCard = document.createElement('div');
-                eventCard.className = 'event-card';
-                eventCard.innerHTML = `
-                    <div class="event-year">${event.year}</div>
-                    <div class="event-content">${event.content}</div>
-                `;
-                eventsGrid.appendChild(eventCard);
-            });
-
-            // 添加特殊事件卡片
-            const specialEventCard = document.createElement('div');
-            specialEventCard.className = 'special-event-card';
-            specialEventCard.innerHTML = `
-                <div class="special-event-year">2007年</div>
-                <div class="special-event-prompt">点击揭开 ✨</div>
-                <div class="special-event-content">snowball出生啦！🎂 祝你生日快乐哦～ qwq</div>
-            `;
-            eventsGrid.appendChild(specialEventCard);
-
-            // 添加特殊事件点击事件
-            const specialContent = specialEventCard.querySelector('.special-event-content');
-            let hasPlayed = false;
-            
-            specialEventCard.addEventListener('click', () => {
-                specialContent.classList.add('show');
-                
-                const prompt = specialEventCard.querySelector('.special-event-prompt');
-                prompt.style.opacity = '0';
-                setTimeout(() => {
-                    prompt.style.display = 'none';
-                }, 500);
-
-                if (!hasPlayed) {
-                    createBalloons();
-                    playBirthdayMusic();
-                    hasPlayed = true;
-                    
-                    // 添加庆祝特效
-                    createCelebration();
-                }
-            });
-        }
-
-        // 创建庆祝特效
-        function createCelebration() {
-            for (let i = 0; i < 20; i++) {
-                setTimeout(() => {
-                    const confetti = document.createElement('div');
-                    confetti.style.position = 'fixed';
-                    confetti.style.left = Math.random() * 100 + '%';
-                    confetti.style.top = '-20px';
-                    confetti.style.width = '10px';
-                    confetti.style.height = '10px';
-                    confetti.style.background = ['#FF6B6B', '#4ECDC4', '#FFEAA7', '#DDA0DD'][Math.floor(Math.random() * 4)];
-                    confetti.style.borderRadius = '50%';
-                    confetti.style.animation = `fall ${2 + Math.random() * 2}s linear forwards`;
-                    confetti.style.zIndex = '9998';
-                    
-                    document.body.appendChild(confetti);
-                    
-                    setTimeout(() => {
-                        if (confetti.parentNode) {
-                            confetti.parentNode.removeChild(confetti);
-                        }
-                    }, 4000);
-                }, i * 100);
-            }
-            
-            // 添加fall动画
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes fall {
-                    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-                    100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-
-        // 初始化
-        createTextParticles('@snowball Click');
-        renderHistoricalEvents();
-
-        function animate() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            particles = particles.filter(particle => {
-                particle.update();
-                particle.draw();
-                return particle.alpha > 0.1;
-            });
-            
-            requestAnimationFrame(animate);
-        }
-
-        animate();
-
-        // 点击切换文字并显示按钮
-        canvas.addEventListener('click', () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            createTextParticles('Happy Birthday! 🎉');
-            
-            setTimeout(() => {
-                button.classList.add('show');
-                scrollHint.classList.add('show');
-            }, 100);
+      }
+      _drawUFO(ctx, cx, cy, s) {
+        const main=this.color, light=this.lightColor;
+        const dome=ctx.createRadialGradient(cx,cy-s*0.1,s*0.05,cx,cy-s*0.05,s*0.3);
+        dome.addColorStop(0,light); dome.addColorStop(1,main);
+        ctx.fillStyle=dome; ctx.beginPath(); ctx.ellipse(cx,cy-s*0.08,s*0.3,s*0.22,0,Math.PI,Math.PI*2); ctx.fill();
+        const disc=ctx.createLinearGradient(cx,cy-s*0.1,cx,cy+s*0.1);
+        disc.addColorStop(0,main); disc.addColorStop(1,'#2c3e50');
+        ctx.fillStyle=disc; ctx.beginPath(); ctx.ellipse(cx,cy+s*0.02,s*0.44,s*0.12,0,0,Math.PI*2); ctx.fill();
+        [-0.3,-0.15,0,0.15,0.3].forEach((lx,i)=>{
+          const flicker=Math.sin(Date.now()/200+i*1.5)*0.3+0.7;
+          ctx.fillStyle=`rgba(255,255,100,${0.5+flicker*0.5})`;
+          ctx.beginPath(); ctx.arc(cx+lx*s,cy+s*0.02,s*0.04,0,Math.PI*2); ctx.fill();
         });
+        ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.arc(cx-s*0.06,cy-s*0.16,s*0.08,0,Math.PI*2); ctx.fill();
+      }
+    }
 
-        // 按钮点击事件
-        button.addEventListener('click', () => {
-            button.classList.remove('show');
-            button.classList.add('hide');
-            scrollHint.classList.remove('show');
-            scrollHint.classList.add('hide');
-            
-            enableScroll();
-            
-            setTimeout(() => {
-                historySection.scrollIntoView({ 
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            }, 100);
-        });
+    class Particle {
+      constructor(x,y,color,size,life){ this.x=x;this.y=y;this.color=color;this.size=size;this.life=life;this.maxLife=life; const a=Math.random()*Math.PI*2,s=60+Math.random()*250; this.vx=Math.cos(a)*s;this.vy=Math.sin(a)*s-80;this.gravity=150+Math.random()*200; }
+      update(dt){ this.x+=this.vx*dt;this.y+=this.vy*dt;this.vy+=this.gravity*dt;this.life-=dt; return this.life>0; }
+      draw(ctx){ const alpha=Math.max(0,this.life/this.maxLife); ctx.fillStyle=this.color.replace('1)',`${alpha})`).replace('rgb','rgba'); ctx.beginPath(); ctx.arc(this.x,this.y,this.size*alpha,0,Math.PI*2); ctx.fill(); }
+    }
+    class FloatingText {
+      constructor(x,y,text,color){ this.x=x;this.y=y;this.text=text;this.color=color;this.life=0.9;this.maxLife=0.9;this.vy=-100; }
+      update(dt){ this.y+=this.vy*dt;this.vy*=0.98;this.life-=dt; return this.life>0; }
+      draw(ctx){ const alpha=Math.max(0,this.life/this.maxLife),scale=1+(1-alpha)*0.3; ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=this.color; ctx.font=`bold ${18*scale}px "PingFang SC","Microsoft YaHei",sans-serif`; ctx.textAlign='center';ctx.fillText(this.text,this.x,this.y); ctx.restore(); }
+    }
+    class Cloud {
+      constructor(){ this.x=Math.random()*GAME_WIDTH;this.y=Math.random()*GAME_HEIGHT*0.55;this.speed=8+Math.random()*20;this.opacity=0.15+Math.random()*0.2;this.size=40+Math.random()*90;this.segments=3+Math.floor(Math.random()*4); }
+      update(dt){ this.x-=this.speed*dt; if(this.x<-this.size*2){this.x=GAME_WIDTH+this.size;this.y=Math.random()*GAME_HEIGHT*0.55;} }
+      draw(ctx){ ctx.fillStyle=`rgba(255,255,255,${this.opacity})`; const cx=this.x,cy=this.y,r=this.size*0.35; for(let i=0;i<this.segments;i++){ const ox=(i-(this.segments-1)/2)*r*1.1,oy=Math.sin(i*1.2)*r*0.3; ctx.beginPath();ctx.arc(cx+ox,cy+oy,r*0.72,0,Math.PI*2);ctx.fill(); } }
+    }
 
-        // 窗口大小改变时重新调整
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            createTextParticles('Happy Birthday! 🎉');
-        });
+    function initClouds(){ clouds=[]; for(let i=0;i<8;i++) clouds.push(new Cloud()); clouds.forEach(c=>c.x=Math.random()*GAME_WIDTH); }
+    function spawnTarget(){
+      let probs;
+      if(difficultyLevel<=1) probs=[0.4,0.4,0.2];
+      else if(difficultyLevel<=2) probs=[0.35,0.35,0.3];
+      else probs=[0.3,0.3,0.4];
+      const rand=Math.random(); let cum=0,idx=0;
+      for(let i=0;i<probs.length;i++){ cum+=probs[i]; if(rand<=cum){ idx=i; break; } }
+      targets.push(new Target(idx));
+    }
+    function resetGame(){
+      score=0;combo=0;maxCombo=0;difficultyLevel=1;spawnInterval=1.6;
+      targets=[];particles=[];floatingTexts=[];scopeActive=false;shootCooldown=0;
+      hitRadiusMultiplier=1.0;cooldownMultiplier=1.0;extraPoints=0;nextUpgradeScore=500;upgradeActive=false;
+      dayTime=0.3; updateUI();updateScopeUI();
+      if(comboTimer)clearTimeout(comboTimer);comboTimer=null;
+      const p=document.getElementById('upgradePanel'); if(p)p.remove();
+    }
+    function updateUI(){
+      scoreValueEl.textContent=score;
+      if(combo>=2){ comboDisplay.classList.add('active'); comboCountEl.textContent='x'+combo; }
+      else{ comboDisplay.classList.remove('active'); comboCountEl.textContent='x1'; }
+      const nl=Math.floor(score/30)+1;
+      if(nl!==difficultyLevel){ difficultyLevel=nl; spawnInterval=Math.max(0.5,1.6-(difficultyLevel-1)*0.22); }
+    }
+    function updateScopeUI(){
+      if(scopeActive){ btnScope.classList.add('active'); btnScopeText.textContent='关闭瞄准镜'; gameContainer.classList.add('scope-active'); scopeOverlay.classList.add('visible'); }
+      else{ btnScope.classList.remove('active'); btnScopeText.textContent='打开瞄准镜'; gameContainer.classList.remove('scope-active'); scopeOverlay.classList.remove('visible'); }
+    }
+    function animateScore(){ scoreValueEl.classList.remove('pulse'); void scoreValueEl.offsetWidth; scoreValueEl.classList.add('pulse'); }
+    function showUpgradePanel(){
+      upgradeActive=true;
+      const panel=document.createElement('div'); panel.id='upgradePanel';
+      panel.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,20,40,0.95);border:2px solid gold;border-radius:20px;padding:24px;z-index:1000;text-align:center;color:white;font-family:"PingFang SC","Microsoft YaHei",sans-serif;min-width:260px;box-shadow:0 10px 30px rgba(0,0,0,0.7);';
+      panel.innerHTML=`
+        <h2 style="color:gold;margin-bottom:8px;">🎖️ 升级选择</h2>
+        <p style="margin-bottom:20px;color:#ccc;">当前分数 ${score} 分</p>
+        <button class="upgrade-btn" data-type="radius">🔵 扩大命中范围 (+5%)</button>
+        <button class="upgrade-btn" data-type="cooldown">⚡ 减小射击冷却 (-10%)</button>
+        <button class="upgrade-btn" data-type="points">⭐ 命中分数增加 (+2)</button>
+        <style>.upgrade-btn{display:block;width:100%;margin:10px 0;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#2c3e50,#34495e);color:white;font-size:1.05rem;font-weight:bold;cursor:pointer;transition:0.2s;}.upgrade-btn:hover{background:linear-gradient(135deg,#3e5c76,#4a6984);transform:scale(1.02);}.upgrade-btn:active{transform:scale(0.96);}</style>
+      `;
+      document.body.appendChild(panel);
+      panel.addEventListener('click',(e)=>{
+        const btn=e.target.closest('.upgrade-btn'); if(!btn)return;
+        if(btn.dataset.type==='radius') hitRadiusMultiplier*=1.05;
+        else if(btn.dataset.type==='cooldown') cooldownMultiplier*=0.9;
+        else if(btn.dataset.type==='points') extraPoints+=2;
+        nextUpgradeScore+=500; upgradeActive=false; panel.remove();
+      });
+    }
+    function shoot(sx,sy){
+      if(shootCooldown>0||!scopeActive||upgradeActive)return;
+      shootCooldown=BASE_SHOOT_COOLDOWN*cooldownMultiplier; sfxShoot();
+      const hitRadius=BASE_HIT_RADIUS*hitRadiusMultiplier;
+      let hitTarget=null;
+      const candidates=[...targets].filter(t=>t.alive&&!t.falling).sort((a,b)=>b.x-a.x);
+      for(const t of candidates){ if(dist(sx,sy,t.x,t.y)<hitRadius+t.size*0.7){ hitTarget=t; break; } }
+      if(hitTarget){
+        sfxHit(); hitTarget.alive=false;hitTarget.falling=true;hitTarget.fallSpeed=-60;hitTarget.fallRotation=(Math.random()-0.5)*300;
+        combo++; if(combo>maxCombo)maxCombo=combo; if(combo>=3)sfxCombo();
+        const bonus=Math.min(combo,8), earned=hitTarget.points*bonus; score+=earned; animateScore();
+        floatingTexts.push(new FloatingText(hitTarget.x,hitTarget.y-20,combo>=3?`+${earned} 🔥x${combo}`:`+${earned}`,combo>=4?'#ff4500':combo>=2?'#ffaa00':'#ffcc00'));
+        for(let i=0;i<22;i++) particles.push(new Particle(hitTarget.x,hitTarget.y,['rgb(255,200,50)','rgb(255,150,30)','rgb(255,100,20)'][i%3],2+Math.random()*5,0.4+Math.random()*0.6));
+        if(comboTimer)clearTimeout(comboTimer); comboTimer=setTimeout(()=>{combo=0;updateUI();comboTimer=null;},1800);
+      }else{
+        sfxMiss(); if(comboTimer)clearTimeout(comboTimer); combo=0;comboTimer=null;
+        floatingTexts.push(new FloatingText(sx,sy,'MISS','#8899aa'));
+        for(let i=0;i<6;i++) particles.push(new Particle(sx,sy,'rgb(180,180,200)',1+Math.random()*2,0.2+Math.random()*0.3));
+      }
+      updateUI(); if(score>=nextUpgradeScore&&!upgradeActive) showUpgradePanel();
+    }
 
-        // 防止初始加载时的滚动
-        window.addEventListener('load', () => {
-            disableScroll();
-        });
-    </script>
+    function drawBackground(ctx){
+      const nf=getNightFactor();
+      const skyTop=lerpColor([135,206,235],[11,11,46],nf);
+      const skyBot=lerpColor([232,244,251],[26,26,46],nf);
+      const grad=ctx.createLinearGradient(0,0,0,GAME_HEIGHT);
+      grad.addColorStop(0,skyTop); grad.addColorStop(0.4,skyBot); grad.addColorStop(1,lerpColor([200,220,180],[30,30,50],nf));
+      ctx.fillStyle=grad; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+      const cx=GAME_WIDTH*0.75, cy=GAME_HEIGHT*0.15+Math.sin(dayTime*Math.PI*2)*GAME_HEIGHT*0.1;
+      ctx.globalAlpha=1-nf; ctx.fillStyle='#ffd700'; ctx.beginPath(); ctx.arc(cx,cy,28,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,200,0.4)'; ctx.beginPath(); ctx.arc(cx,cy,35,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=nf; ctx.fillStyle='#ffe9b0'; ctx.beginPath(); ctx.arc(cx,cy,25,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=skyTop; ctx.beginPath(); ctx.arc(cx+8,cy-6,20,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=nf; for(let i=0;i<30;i++){ const sx=Math.random()*GAME_WIDTH,sy=Math.random()*GAME_HEIGHT*0.6; ctx.fillStyle=`rgba(255,255,255,${0.4+Math.random()*0.6})`; ctx.beginPath(); ctx.arc(sx,sy,1.2,0,Math.PI*2); ctx.fill(); }
+      ctx.globalAlpha=1;
+      ctx.fillStyle=lerpColor([200,220,160],[74,94,64],nf); ctx.beginPath();
+      ctx.moveTo(0,GAME_HEIGHT);ctx.quadraticCurveTo(80,GAME_HEIGHT-100,160,GAME_HEIGHT-55);
+      ctx.quadraticCurveTo(240,GAME_HEIGHT-130,320,GAME_HEIGHT-40);ctx.quadraticCurveTo(370,GAME_HEIGHT-80,GAME_WIDTH,GAME_HEIGHT-60);
+      ctx.lineTo(GAME_WIDTH,GAME_HEIGHT);ctx.closePath();ctx.fill();
+      ctx.fillStyle=lerpColor([181,201,138],[61,77,53],nf); ctx.beginPath();
+      ctx.moveTo(0,GAME_HEIGHT);ctx.quadraticCurveTo(100,GAME_HEIGHT-70,200,GAME_HEIGHT-35);
+      ctx.quadraticCurveTo(300,GAME_HEIGHT-90,GAME_WIDTH,GAME_HEIGHT-30);ctx.lineTo(GAME_WIDTH,GAME_HEIGHT);ctx.closePath();ctx.fill();
+      const groundGrad=ctx.createLinearGradient(0,GAME_HEIGHT-40,0,GAME_HEIGHT);
+      groundGrad.addColorStop(0,lerpColor([141,178,85],[58,74,42],nf));
+      groundGrad.addColorStop(1,lerpColor([109,143,58],[26,42,21],nf));
+      ctx.fillStyle=groundGrad; ctx.fillRect(0,GAME_HEIGHT-45,GAME_WIDTH,50);
+      ctx.fillStyle=lerpColor([125,160,64],[42,58,32],nf);
+      for(let i=0;i<GAME_WIDTH;i+=18){ const h=8+Math.sin(i*0.4)*6; ctx.beginPath(); ctx.moveTo(i,GAME_HEIGHT-45); ctx.lineTo(i+3,GAME_HEIGHT-45-h); ctx.lineTo(i+6,GAME_HEIGHT-45); ctx.fill(); }
+    }
+
+    function drawScope(ctx){
+      if(!scopeActive)return;
+      const sx=scopeX,sy=scopeY;
+      const vignette=ctx.createRadialGradient(sx,sy,90,sx,sy,350);
+      vignette.addColorStop(0,'rgba(0,0,0,0)');vignette.addColorStop(0.25,'rgba(0,0,0,0.05)');
+      vignette.addColorStop(0.7,'rgba(0,0,0,0.35)');vignette.addColorStop(1,'rgba(0,0,0,0.55)');
+      ctx.fillStyle=vignette;ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+      ctx.strokeStyle='rgba(200,40,40,0.8)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(sx,sy,55,0,Math.PI*2);ctx.stroke();
+      ctx.lineWidth=1.5;
+      for(let i=0;i<24;i++){ const a=(i/24)*Math.PI*2; ctx.beginPath(); ctx.moveTo(sx+Math.cos(a)*50,sy+Math.sin(a)*50); ctx.lineTo(sx+Math.cos(a)*(i%6===0?62:i%3===0?58:55),sy+Math.sin(a)*(i%6===0?62:i%3===0?58:55)); ctx.stroke(); }
+      ctx.strokeStyle='rgba(220,60,60,0.7)';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(sx,sy,30,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle='rgba(230,50,50,0.9)';ctx.lineWidth=1;ctx.setLineDash([8,4]);
+      ctx.beginPath();ctx.moveTo(sx-70,sy);ctx.lineTo(sx-58,sy);ctx.moveTo(sx+58,sy);ctx.lineTo(sx+70,sy);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(sx,sy-70);ctx.lineTo(sx,sy-58);ctx.moveTo(sx,sy+58);ctx.lineTo(sx,sy+70);ctx.stroke();ctx.setLineDash([]);
+      ctx.strokeStyle='rgba(240,60,60,0.95)';ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.moveTo(sx-32,sy);ctx.lineTo(sx-6,sy);ctx.moveTo(sx+6,sy);ctx.lineTo(sx+32,sy);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(sx,sy-32);ctx.lineTo(sx,sy-6);ctx.moveTo(sx,sy+6);ctx.lineTo(sx,sy+32);ctx.stroke();
+      const glow=ctx.createRadialGradient(sx,sy,0,sx,sy,8);
+      glow.addColorStop(0,'rgba(255,30,30,1)');glow.addColorStop(0.5,'rgba(255,40,40,0.8)');glow.addColorStop(1,'rgba(255,50,50,0)');
+      ctx.fillStyle=glow;ctx.beginPath();ctx.arc(sx,sy,8,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='rgba(255,20,20,0.95)';ctx.beginPath();ctx.arc(sx,sy,2.5,0,Math.PI*2);ctx.fill();
+      [{x:sx-65,y:sy-65,dx:1,dy:1},{x:sx+65,y:sy-65,dx:-1,dy:1},{x:sx-65,y:sy+65,dx:1,dy:-1},{x:sx+65,y:sy+65,dx:-1,dy:-1}].forEach(c=>{ ctx.beginPath();ctx.moveTo(c.x,c.y+c.dy*14);ctx.lineTo(c.x,c.y);ctx.lineTo(c.x+c.dx*14,c.y);ctx.stroke(); });
+      if(shootCooldown>0){ const r=shootCooldown/(BASE_SHOOT_COOLDOWN*cooldownMultiplier); ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(sx,sy,40,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-r));ctx.stroke(); }
+      const cr=(BASE_HIT_RADIUS*hitRadiusMultiplier).toFixed(1);
+      const cc=(BASE_SHOOT_COOLDOWN*cooldownMultiplier).toFixed(2);
+      ctx.fillStyle='rgba(255,255,255,0.9)';ctx.font='bold 13px "PingFang SC","Microsoft YaHei",sans-serif';ctx.textAlign='center';
+      ctx.fillText(`命中范围: ${cr}  |  冷却: ${cc}s  |  得分: ${BASE_POINTS+extraPoints}`, GAME_WIDTH/2, GAME_HEIGHT-30);
+      ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='11px "PingFang SC","Microsoft YaHei",sans-serif';ctx.fillText('移动准星 · 点击射击', GAME_WIDTH/2, GAME_HEIGHT-12);
+    }
+
+    let lastTime=performance.now();
+    function gameLoop(ts){
+      let dt=(ts-lastTime)/1000; if(dt<=0)dt=0.016; if(dt>0.1)dt=0.1; lastTime=ts;
+      dayTime=(dayTime+dt*DAY_SPEED)%1;
+      indicator.style.left=(dayTime*100)+'%';
+      if(upgradeActive){ requestAnimationFrame(gameLoop); return; }
+      if(shootCooldown>0){ shootCooldown-=dt; if(shootCooldown<0)shootCooldown=0; }
+      spawnAccum+=dt;
+      if(spawnAccum>=spawnInterval+(Math.random()-0.5)*0.6 && targets.filter(t=>t.alive&&!t.falling).length<8){ spawnAccum=0; spawnTarget(); }
+      targets=targets.filter(t=>t.update(dt)); particles=particles.filter(p=>p.update(dt));
+      floatingTexts=floatingTexts.filter(ft=>ft.update(dt)); clouds.forEach(c=>c.update(dt));
+      ctx.clearRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+      drawBackground(ctx); clouds.forEach(c=>c.draw(ctx)); targets.forEach(t=>t.draw(ctx));
+      particles.forEach(p=>p.draw(ctx)); floatingTexts.forEach(ft=>ft.draw(ctx)); drawScope(ctx);
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameContainer.addEventListener('mousemove',e=>{ if(!scopeActive||upgradeActive)return; const p=getCanvasPos(e); scopeX=p.x;scopeY=p.y; });
+    gameContainer.addEventListener('click',e=>{ if(!scopeActive||upgradeActive)return; const p=getCanvasPos(e); scopeX=p.x;scopeY=p.y; shoot(scopeX,scopeY); });
+    gameContainer.addEventListener('touchstart',e=>{ if(!scopeActive||upgradeActive)return; if(e.touches.length===1){ const p=getTouchPos(e.touches[0]); pointerStartX=p.x;pointerStartY=p.y;scopeX=p.x;scopeY=p.y;pointerMoved=false;isPointerDown=true; } e.preventDefault(); },{passive:false});
+    gameContainer.addEventListener('touchmove',e=>{ if(!scopeActive||upgradeActive||!isPointerDown)return; if(e.touches.length===1){ const p=getTouchPos(e.touches[0]); if(dist(pointerStartX,pointerStartY,p.x,p.y)>TAP_THRESHOLD)pointerMoved=true; scopeX=p.x;scopeY=p.y; } e.preventDefault(); },{passive:false});
+    gameContainer.addEventListener('touchend',e=>{ if(!scopeActive||upgradeActive)return; if(!pointerMoved&&isPointerDown)shoot(scopeX,scopeY); isPointerDown=false;pointerMoved=false;e.preventDefault(); },{passive:false});
+    gameContainer.addEventListener('touchcancel',()=>{ isPointerDown=false;pointerMoved=false; });
+    btnScope.addEventListener('click',e=>{ e.preventDefault();e.stopPropagation(); if(upgradeActive)return; scopeActive=!scopeActive; if(!scopeActive){ if(comboTimer)clearTimeout(comboTimer);combo=0;comboTimer=null;updateUI(); } else{ scopeX=GAME_WIDTH/2;scopeY=GAME_HEIGHT/2-20;shootCooldown=0; } updateScopeUI(); });
+    btnScope.addEventListener('touchstart',e=>e.stopPropagation());
+    window.addEventListener('resize',()=>{ resizeCanvas(); const r=canvas.getBoundingClientRect(); canvasOffsetX=r.left;canvasOffsetY=r.top; });
+    document.addEventListener('dblclick',e=>{ if(gameContainer.contains(e.target)||btnScope.contains(e.target))e.preventDefault(); },{passive:false});
+    document.addEventListener('keydown',e=>{ if(e.key===' '||e.code==='Space'){ e.preventDefault(); if(upgradeActive)return; if(!scopeActive){ scopeActive=true;scopeX=GAME_WIDTH/2;scopeY=GAME_HEIGHT/2-20;shootCooldown=0;updateScopeUI(); } else shoot(scopeX,scopeY); } else if(e.key==='Escape'){ if(scopeActive&&!upgradeActive){ scopeActive=false; if(comboTimer)clearTimeout(comboTimer);combo=0;comboTimer=null;updateUI();updateScopeUI(); } } });
+
+    function init(){ resizeCanvas(); initClouds(); resetGame(); updateScopeUI();updateUI(); for(let i=0;i<3;i++)setTimeout(()=>spawnTarget(),i*400); requestAnimationFrame(gameLoop); }
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init); else init();
+    console.log('🛸 昼夜飞碟版 · 丝滑过渡 · 进度条 · 强化音效');
+  })();
+</script>
 </body>
 </html>
