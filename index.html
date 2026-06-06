@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0, minimum-scale=1.0, shrink-to-fit=no">
   <title>🛸 天空猎手 · 昼夜飞碟</title>
   <style>
     :root { --game-width: 400px; --game-height: 680px; --bg: #1a1a2e; }
@@ -62,7 +62,6 @@
     .combo-text { color: #ff6b35; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.04em; }
     .combo-count { color: #ff4500; font-size: 1.4rem; font-weight: 900; text-shadow: 0 0 15px rgba(255, 69, 0, 0.6); }
 
-    /* 昼夜进度条 */
     .day-night-bar {
       width: 80px; height: 10px;
       background: linear-gradient(to right, #1a1a3e, #87CEEB);
@@ -107,10 +106,12 @@
     .btn-area {
       width: 100%; padding: 12px 16px; background: rgba(20, 20, 40, 0.85);
       border-radius: 0 0 16px 16px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.1); border-top: none; display: flex; justify-content: center; gap: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1); border-top: none;
+      display: flex; justify-content: center; align-items: center; gap: 14px;
+      flex-wrap: wrap;
     }
     .btn-scope {
-      position: relative; padding: 14px 32px; font-size: 1.05rem; font-weight: 700;
+      position: relative; padding: 14px 28px; font-size: 1.05rem; font-weight: 700;
       letter-spacing: 0.04em; border: none; border-radius: 50px; cursor: pointer; color: #fff;
       background: linear-gradient(135deg, #e74c3c, #c0392b);
       box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4), 0 2px 4px rgba(0,0,0,0.3);
@@ -138,13 +139,36 @@
     }
     .btn-scope.cooldown .cooldown-ring { border-color: rgba(255,255,255,0.5); animation: cooldownSpin 0.4s linear; }
     @keyframes cooldownSpin { from { border-top-color: #fff; } to { border-top-color: transparent; } }
+
+    .progress-tip {
+      color: #bcc8d6;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-align: center;
+      white-space: nowrap;
+      background: rgba(255,255,255,0.06);
+      padding: 6px 14px;
+      border-radius: 20px;
+      transition: color 0.3s ease;
+    }
+    .progress-tip.warning {
+      color: #ff9f43;
+      animation: tipPulse 0.8s ease-in-out infinite;
+    }
+    @keyframes tipPulse {
+      0%,100%{ color: #ff9f43; }
+      50%{ color: #ff6b6b; }
+    }
+
     @media (max-width: 440px) {
       .game-wrapper { width: 100vw; max-width: 100vw; }
       .game-header { border-radius: 0; padding: 8px 12px; }
-      .btn-area { border-radius: 0; padding: 10px 12px; }
+      .btn-area { border-radius: 0; padding: 10px 8px; gap: 8px; }
       .game-container { border-radius: 0; border-left: none; border-right: none; max-height: 62vh; }
-      .btn-scope { padding: 12px 24px; font-size: 0.95rem; }
+      .btn-scope { padding: 12px 18px; font-size: 0.9rem; }
       .score-value { font-size: 1.5rem; }
+      .progress-tip { font-size: 0.7rem; padding: 5px 10px; }
     }
     @media (min-width: 441px) and (max-width: 768px) { .game-container { max-height: 68vh; } }
   </style>
@@ -174,6 +198,7 @@
       <span id="btnScopeText">打开瞄准镜</span>
       <span class="cooldown-ring"></span>
     </button>
+    <span class="progress-tip" id="progressTip">🌅 第1天 · 白天</span>
   </div>
 </div>
 
@@ -190,6 +215,7 @@
     const btnScopeText = document.getElementById('btnScopeText');
     const scopeOverlay = document.getElementById('scopeOverlay');
     const indicator = document.getElementById('dayNightIndicator');
+    const progressTip = document.getElementById('progressTip');
 
     // 音效引擎
     let audioCtx = null;
@@ -232,36 +258,58 @@
     }
     function sfxMiss() { playSound(100, 'triangle', 0.12, 0.04); playSound(80, 'sine', 0.08, 0.03); }
     function sfxCombo() { playSound(1000, 'square', 0.06, 0.05); playSound(1400, 'square', 0.05, 0.04); }
+    function sfxBonus() {
+      for (let i=0;i<5;i++) playSound(500+i*200, 'sine', 0.09, 0.06, 900+i*200, i*0.05);
+    }
+    function sfxBomb() {
+      playSound(40, 'sawtooth', 0.5, 0.15, 20);
+      playSound(80, 'triangle', 0.4, 0.1);
+    }
+    function sfxGameOver() {
+      playSound(200, 'sine', 0.6, 0.12, 80);
+      playSound(300, 'sine', 0.5, 0.1, 150);
+      playSound(150, 'triangle', 0.7, 0.08, 50);
+    }
 
     // 常量
     const GAME_WIDTH = 400, GAME_HEIGHT = 680;
     const BASE_HIT_RADIUS = 20;
     const BASE_SHOOT_COOLDOWN = 0.35;
-    const BASE_POINTS = 10;
     const NIGHT_VIS_RADIUS = 250;
+    const SLOT_SIZE = 28;
+    const MAX_GAME_DURATION = 2.5;
     let canvasScale = 1, canvasOffsetX = 0, canvasOffsetY = 0;
     let score = 0, combo = 0, maxCombo = 0, comboTimer = null;
+    let totalHits = 0, totalMisses = 0;
     let scopeActive = false, scopeX = GAME_WIDTH/2, scopeY = GAME_HEIGHT/2;
     let shootCooldown = 0;
     let isPointerDown = false, pointerMoved = false, pointerStartX = 0, pointerStartY = 0;
     const TAP_THRESHOLD = 12;
+    let recentHits = [];
+    let gameTime = 0;
+    let totalDayProgress = 0;
+    let gameOver = false;
 
-    let dayTime = 0.3;                 // 0-1 周期
-    const DAY_SPEED = 0.004;           // 昼夜速度
+    let dayTime = 0.3;
+    const DAY_SPEED = 0.004;
+    let nightTipShown = false;
+    let gameTip = null;
 
     let hitRadiusMultiplier = 1.0;
     let cooldownMultiplier = 1.0;
     let extraPoints = 0;
-    let nextUpgradeScore = 500;
+    let nextUpgradeScore = 100;
     let upgradeActive = false;
+    let upgradesHistory = [];
 
     let targets = [], particles = [], clouds = [], floatingTexts = [];
-    let spawnAccum = 0, spawnInterval = 1.6, difficultyLevel = 1;
+    let spawnAccum = 0;
 
     const TARGET_TYPES = [
-      { name: '红飞碟', color: '#e74c3c', lightColor: '#ff9999', size: 38, speedRange: [70, 120], points: BASE_POINTS, floatAmp: 20, floatFreq: 2.0 },
-      { name: '蓝飞碟', color: '#3498db', lightColor: '#99ccff', size: 38, speedRange: [55, 95], points: BASE_POINTS, floatAmp: 22, floatFreq: 1.8 },
-      { name: '绿飞碟', color: '#2ecc71', lightColor: '#99ffbb', size: 38, speedRange: [90, 150], points: BASE_POINTS, floatAmp: 18, floatFreq: 2.4 }
+      { name: '红飞碟', color: '#e74c3c', lightColor: '#ff9999', size: 38, speedRange: [70, 120], floatAmp: 20, floatFreq: 2.0 },
+      { name: '蓝飞碟', color: '#3498db', lightColor: '#99ccff', size: 38, speedRange: [55, 95], floatAmp: 22, floatFreq: 1.8 },
+      { name: '绿飞碟', color: '#2ecc71', lightColor: '#99ffbb', size: 38, speedRange: [90, 150], floatAmp: 18, floatFreq: 2.4 },
+      { name: '炸弹碟', color: '#1a1a1a', lightColor: '#ff4444', size: 40, speedRange: [65, 110], floatAmp: 16, floatFreq: 2.2 }
     ];
 
     function resizeCanvas() {
@@ -286,7 +334,6 @@
     }
     function dist(x1,y1,x2,y2) { return Math.sqrt((x1-x2)**2 + (y1-y2)**2); }
 
-    // 颜色插值
     function lerpColor(c1, c2, f) {
       const r = Math.round(c1[0] + (c2[0]-c1[0]) * f);
       const g = Math.round(c1[1] + (c2[1]-c1[1]) * f);
@@ -294,7 +341,6 @@
       return `rgb(${r},${g},${b})`;
     }
 
-    // 昼夜因子：0=白天，1=夜晚，过渡平滑
     function getNightFactor() {
       const t = dayTime;
       if (t < 0.2) return 1;
@@ -305,20 +351,74 @@
       return 0;
     }
 
+    function isNight() { return getNightFactor() > 0.5; }
+
+    function getDayPhase() {
+      const dp = totalDayProgress;
+      if (dp < 0.4) return { day: 1, isNight: false, label: '🌅 第1天 · 白天' };
+      if (dp < 0.9) return { day: 1, isNight: true, label: '🌙 第1夜' };
+      if (dp < 1.4) return { day: 2, isNight: false, label: '🌅 第2天 · 白天' };
+      if (dp < 1.9) return { day: 2, isNight: true, label: '🌙 第2夜' };
+      return { day: 3, isNight: false, label: '🌅 第3天 · 白天' };
+    }
+
+    function updateProgressTip() {
+      if (gameOver) {
+        progressTip.textContent = '🏁 游戏结束';
+        progressTip.classList.remove('warning');
+        return;
+      }
+      const phase = getDayPhase();
+      const remaining = MAX_GAME_DURATION - totalDayProgress;
+      const remainingStr = remaining < 0.35 ? ' (即将结束)' : '';
+      progressTip.textContent = phase.label + remainingStr;
+      if (remaining < 0.35) {
+        progressTip.classList.add('warning');
+      } else {
+        progressTip.classList.remove('warning');
+      }
+    }
+
+    function drawUFO(ctx, cx, cy, s, main, light, alpha = 1, isBomb = false) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const dome = ctx.createRadialGradient(cx, cy-s*0.1, s*0.05, cx, cy-s*0.05, s*0.3);
+      dome.addColorStop(0, light); dome.addColorStop(1, main);
+      ctx.fillStyle = dome;
+      ctx.beginPath(); ctx.ellipse(cx, cy-s*0.08, s*0.3, s*0.22, 0, Math.PI, Math.PI*2); ctx.fill();
+      const disc = ctx.createLinearGradient(cx, cy-s*0.1, cx, cy+s*0.1);
+      disc.addColorStop(0, main); disc.addColorStop(1, '#2c3e50');
+      ctx.fillStyle = disc;
+      ctx.beginPath(); ctx.ellipse(cx, cy+s*0.02, s*0.44, s*0.12, 0, 0, Math.PI*2); ctx.fill();
+      if (isBomb) {
+        ctx.fillStyle = '#ff0000';
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath(); ctx.arc(cx + (i-1)*s*0.25, cy+s*0.02, s*0.05, 0, Math.PI*2); ctx.fill();
+        }
+      } else {
+        [-0.3, -0.15, 0, 0.15, 0.3].forEach(lx => {
+          ctx.fillStyle = 'rgba(255,255,100,0.7)';
+          ctx.beginPath(); ctx.arc(cx+lx*s, cy+s*0.02, s*0.04, 0, Math.PI*2); ctx.fill();
+        });
+      }
+      ctx.fillStyle = isBomb ? 'rgba(255,100,100,0.9)' : 'rgba(255,255,255,0.5)';
+      ctx.beginPath(); ctx.arc(cx-s*0.06, cy-s*0.16, s*0.08, 0, Math.PI*2); ctx.fill();
+      if (isBomb) {
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 15px "PingFang SC","Microsoft YaHei"';
+        ctx.textAlign = 'center';
+        ctx.fillText('✖', cx, cy-s*0.32);
+      }
+      ctx.restore();
+    }
+
     class Target {
-      constructor(typeIndex) {
+      constructor(typeIndex, dir = 'right') {
         const type = TARGET_TYPES[typeIndex];
         this.typeIndex = typeIndex;
         this.type = type;
-        this.x = GAME_WIDTH + type.size + Math.random() * 80;
-        this.y = 60 + Math.random() * (GAME_HEIGHT - 180);
-        this.baseY = this.y;
         this.size = type.size;
         this.speed = type.speedRange[0] + Math.random() * (type.speedRange[1] - type.speedRange[0]);
-        this.points = type.points + extraPoints;
-        this.floatAmp = type.floatAmp;
-        this.floatFreq = type.floatFreq;
-        this.floatOffset = Math.random() * Math.PI * 2;
         this.alive = true;
         this.wingPhase = Math.random() * Math.PI * 2;
         this.falling = false;
@@ -327,58 +427,80 @@
         this.opacity = 1;
         this.color = type.color;
         this.lightColor = type.lightColor;
+        this.isBomb = typeIndex === 3;
+
+        if (dir === 'left') {
+          this.x = -this.size;
+          this.y = 60 + Math.random() * (GAME_HEIGHT - 180);
+          this.vx = this.speed; this.vy = 0;
+        } else if (dir === 'top') {
+          this.x = 30 + Math.random() * (GAME_WIDTH - 60);
+          this.y = -this.size;
+          this.vx = 0; this.vy = this.speed;
+        } else if (dir === 'bottom') {
+          this.x = 30 + Math.random() * (GAME_WIDTH - 60);
+          this.y = GAME_HEIGHT + this.size;
+          this.vx = 0; this.vy = -this.speed;
+        } else {
+          this.x = GAME_WIDTH + this.size + Math.random() * 80;
+          this.y = 60 + Math.random() * (GAME_HEIGHT - 180);
+          this.vx = -this.speed; this.vy = 0;
+        }
+        this.baseX = this.x; this.baseY = this.y;
+        this.wobbleAxis = (Math.abs(this.vx) > Math.abs(this.vy)) ? 'y' : 'x';
+
+        const chaosLevel = Math.min(1, gameTime / 100);
+        if (Math.random() < 0.2 * chaosLevel) {
+          this.floatAmp = 0; this.floatFreq = 0;
+        } else {
+          const baseAmp = type.floatAmp * (0.4 + chaosLevel * 1.6);
+          this.floatAmp = Math.max(0, baseAmp + (Math.random() - 0.5) * 50 * chaosLevel);
+          this.floatFreq = type.floatFreq * (0.2 + Math.random() * 1.6 * chaosLevel);
+        }
+        this.floatOffset = Math.random() * Math.PI * 2;
       }
       update(dt) {
         if (!this.alive && this.falling) {
-          this.y += this.fallSpeed * dt;
-          this.fallSpeed += 400 * dt;
-          this.fallRotation += 500 * dt;
-          this.opacity -= 1.2 * dt;
+          this.y += this.fallSpeed * dt; this.fallSpeed += 400 * dt;
+          this.fallRotation += 500 * dt; this.opacity -= 1.2 * dt;
           return this.opacity > 0 && this.y <= GAME_HEIGHT + 60;
         }
         if (!this.alive) return false;
-        this.x -= this.speed * dt;
+        this.baseX += this.vx * dt; this.baseY += this.vy * dt;
         this.floatOffset += this.floatFreq * dt;
-        this.y = this.baseY + Math.sin(this.floatOffset) * this.floatAmp;
+        const offset = Math.sin(this.floatOffset) * this.floatAmp;
+        if (this.wobbleAxis === 'x') { this.x = this.baseX + offset; this.y = this.baseY; }
+        else { this.y = this.baseY + offset; this.x = this.baseX; }
         this.wingPhase += 8 * dt;
-        if (this.x < -60) { this.alive = false; return false; }
+        if (this.x < -this.size*2 || this.x > GAME_WIDTH+this.size*2 ||
+            this.y < -this.size*2 || this.y > GAME_HEIGHT+this.size*2) {
+          this.alive = false; return false;
+        }
         return true;
       }
       draw(ctx) {
         if (scopeActive && getNightFactor() > 0.9) {
-          const d = dist(this.x, this.y, scopeX, scopeY);
-          if (d > NIGHT_VIS_RADIUS) return;
+          if (dist(this.x, this.y, scopeX, scopeY) > NIGHT_VIS_RADIUS) return;
         }
         if (!this.alive && this.falling) {
           ctx.save(); ctx.globalAlpha = Math.max(0, this.opacity);
-          ctx.translate(this.x, this.y); ctx.rotate(this.fallRotation * Math.PI / 180);
-          this._drawUFO(ctx, 0, 0, this.size); ctx.restore();
-          return;
+          ctx.translate(this.x, this.y); ctx.rotate(this.fallRotation * Math.PI/180);
+          drawUFO(ctx, 0, 0, this.size, this.color, this.lightColor, 1, this.isBomb);
+          ctx.restore(); return;
         }
         if (!this.alive) return;
-        ctx.save(); this._drawUFO(ctx, this.x, this.y, this.size); ctx.restore();
-        if (this.points >= 4) {
-          ctx.save(); ctx.globalAlpha = 0.25 + Math.sin(Date.now()/300)*0.15;
-          const glow = ctx.createRadialGradient(this.x,this.y,this.size*0.3,this.x,this.y,this.size*1.1);
+        ctx.save(); drawUFO(ctx, this.x, this.y, this.size, this.color, this.lightColor, 1, this.isBomb); ctx.restore();
+        if (!this.isBomb) {
+          ctx.save(); ctx.globalAlpha = 0.25+Math.sin(Date.now()/300)*0.15;
+          const glow=ctx.createRadialGradient(this.x,this.y,this.size*0.3,this.x,this.y,this.size*1.1);
           glow.addColorStop(0,'rgba(255,255,200,0.8)'); glow.addColorStop(1,'rgba(255,200,50,0)');
-          ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(this.x,this.y,this.size*1.1,0,Math.PI*2); ctx.fill();
-          ctx.restore();
+          ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(this.x,this.y,this.size*1.1,0,Math.PI*2); ctx.fill(); ctx.restore();
+        } else {
+          ctx.save(); ctx.globalAlpha=0.4+Math.sin(Date.now()/150)*0.3;
+          const wg=ctx.createRadialGradient(this.x,this.y,this.size*0.2,this.x,this.y,this.size*1.2);
+          wg.addColorStop(0,'rgba(255,0,0,0.9)'); wg.addColorStop(1,'rgba(255,0,0,0)');
+          ctx.fillStyle=wg; ctx.beginPath(); ctx.arc(this.x,this.y,this.size*1.2,0,Math.PI*2); ctx.fill(); ctx.restore();
         }
-      }
-      _drawUFO(ctx, cx, cy, s) {
-        const main=this.color, light=this.lightColor;
-        const dome=ctx.createRadialGradient(cx,cy-s*0.1,s*0.05,cx,cy-s*0.05,s*0.3);
-        dome.addColorStop(0,light); dome.addColorStop(1,main);
-        ctx.fillStyle=dome; ctx.beginPath(); ctx.ellipse(cx,cy-s*0.08,s*0.3,s*0.22,0,Math.PI,Math.PI*2); ctx.fill();
-        const disc=ctx.createLinearGradient(cx,cy-s*0.1,cx,cy+s*0.1);
-        disc.addColorStop(0,main); disc.addColorStop(1,'#2c3e50');
-        ctx.fillStyle=disc; ctx.beginPath(); ctx.ellipse(cx,cy+s*0.02,s*0.44,s*0.12,0,0,Math.PI*2); ctx.fill();
-        [-0.3,-0.15,0,0.15,0.3].forEach((lx,i)=>{
-          const flicker=Math.sin(Date.now()/200+i*1.5)*0.3+0.7;
-          ctx.fillStyle=`rgba(255,255,100,${0.5+flicker*0.5})`;
-          ctx.beginPath(); ctx.arc(cx+lx*s,cy+s*0.02,s*0.04,0,Math.PI*2); ctx.fill();
-        });
-        ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.arc(cx-s*0.06,cy-s*0.16,s*0.08,0,Math.PI*2); ctx.fill();
       }
     }
 
@@ -399,35 +521,67 @@
     }
 
     function initClouds(){ clouds=[]; for(let i=0;i<8;i++) clouds.push(new Cloud()); clouds.forEach(c=>c.x=Math.random()*GAME_WIDTH); }
+    function getDirectionForScore() {
+      if (score < 100) return 'right';
+      if (score < 300) return Math.random() < 0.3 ? 'left' : 'right';
+      const r = Math.random();
+      if (r < 0.4) return 'right';
+      if (r < 0.65) return 'left';
+      if (r < 0.82) return 'top';
+      return 'bottom';
+    }
     function spawnTarget(){
-      let probs;
-      if(difficultyLevel<=1) probs=[0.4,0.4,0.2];
-      else if(difficultyLevel<=2) probs=[0.35,0.35,0.3];
-      else probs=[0.3,0.3,0.4];
-      const rand=Math.random(); let cum=0,idx=0;
+      if (gameOver) return;
+      if (Math.random() < 0.08) { targets.push(new Target(3, getDirectionForScore())); return; }
+      const probs=[0.4,0.4,0.2]; const rand=Math.random(); let cum=0,idx=0;
       for(let i=0;i<probs.length;i++){ cum+=probs[i]; if(rand<=cum){ idx=i; break; } }
-      targets.push(new Target(idx));
+      targets.push(new Target(idx, getDirectionForScore()));
     }
     function resetGame(){
-      score=0;combo=0;maxCombo=0;difficultyLevel=1;spawnInterval=1.6;
-      targets=[];particles=[];floatingTexts=[];scopeActive=false;shootCooldown=0;
-      hitRadiusMultiplier=1.0;cooldownMultiplier=1.0;extraPoints=0;nextUpgradeScore=500;upgradeActive=false;
-      dayTime=0.3; updateUI();updateScopeUI();
+      score=0;combo=0;maxCombo=0;totalHits=0;totalMisses=0;
+      targets=[];particles=[];floatingTexts=[];recentHits=[];
+      scopeActive=false;shootCooldown=0; gameTime=0; totalDayProgress=0; gameOver=false;
+      hitRadiusMultiplier=1.0;cooldownMultiplier=1.0;extraPoints=0;
+      nextUpgradeScore = 100; upgradeActive=false; upgradesHistory=[];
+      dayTime=0.3; nightTipShown=false;
+      gameTip={text:'第一个目标：100得分',life:4,maxLife:4,x:GAME_WIDTH/2,y:GAME_HEIGHT/2};
+      updateUI();updateScopeUI();updateProgressTip();
       if(comboTimer)clearTimeout(comboTimer);comboTimer=null;
       const p=document.getElementById('upgradePanel'); if(p)p.remove();
+      const gp=document.getElementById('gameOverPanel'); if(gp)gp.remove();
+      progressTip.classList.remove('warning');
     }
     function updateUI(){
       scoreValueEl.textContent=score;
       if(combo>=2){ comboDisplay.classList.add('active'); comboCountEl.textContent='x'+combo; }
       else{ comboDisplay.classList.remove('active'); comboCountEl.textContent='x1'; }
-      const nl=Math.floor(score/30)+1;
-      if(nl!==difficultyLevel){ difficultyLevel=nl; spawnInterval=Math.max(0.5,1.6-(difficultyLevel-1)*0.22); }
     }
     function updateScopeUI(){
       if(scopeActive){ btnScope.classList.add('active'); btnScopeText.textContent='关闭瞄准镜'; gameContainer.classList.add('scope-active'); scopeOverlay.classList.add('visible'); }
       else{ btnScope.classList.remove('active'); btnScopeText.textContent='打开瞄准镜'; gameContainer.classList.remove('scope-active'); scopeOverlay.classList.remove('visible'); }
     }
     function animateScore(){ scoreValueEl.classList.remove('pulse'); void scoreValueEl.offsetWidth; scoreValueEl.classList.add('pulse'); }
+    function removeLastUpgrade() {
+      if (upgradesHistory.length===0) return;
+      const last=upgradesHistory.pop();
+      if(last==='radius') hitRadiusMultiplier/=1.05;
+      else if(last==='cooldown') cooldownMultiplier/=0.9;
+      else if(last==='points') extraPoints=Math.max(0,extraPoints-2);
+    }
+
+    function getNextUpgradeScore(currentScore) {
+      if (currentScore >= 10000) return Infinity;
+      if (currentScore >= 2000) {
+        return Math.ceil((currentScore + 1) / 1000) * 1000;
+      } else if (currentScore >= 1000) {
+        const steps = Math.floor((currentScore - 1000) / 300) + 1;
+        return 1000 + steps * 300;
+      } else {
+        const steps = Math.floor(currentScore / 100) + 1;
+        return steps * 100;
+      }
+    }
+
     function showUpgradePanel(){
       upgradeActive=true;
       const panel=document.createElement('div'); panel.id='upgradePanel';
@@ -443,32 +597,76 @@
       document.body.appendChild(panel);
       panel.addEventListener('click',(e)=>{
         const btn=e.target.closest('.upgrade-btn'); if(!btn)return;
-        if(btn.dataset.type==='radius') hitRadiusMultiplier*=1.05;
-        else if(btn.dataset.type==='cooldown') cooldownMultiplier*=0.9;
-        else if(btn.dataset.type==='points') extraPoints+=2;
-        nextUpgradeScore+=500; upgradeActive=false; panel.remove();
+        const type=btn.dataset.type; upgradesHistory.push(type);
+        if(type==='radius') hitRadiusMultiplier*=1.05;
+        else if(type==='cooldown') cooldownMultiplier*=0.9;
+        else if(type==='points') extraPoints+=2;
+        upgradeActive=false; panel.remove();
+        nextUpgradeScore = getNextUpgradeScore(score);
       });
     }
+    function showGameOverPanel(){
+      gameOver=true; sfxGameOver();
+      const panel=document.createElement('div'); panel.id='gameOverPanel';
+      panel.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,20,40,0.96);border:2px solid #ff6b6b;border-radius:20px;padding:28px;z-index:1001;text-align:center;color:white;font-family:"PingFang SC","Microsoft YaHei",sans-serif;min-width:280px;box-shadow:0 12px 40px rgba(0,0,0,0.8);';
+      panel.innerHTML=`
+        <h2 style="color:#ff6b6b;margin-bottom:6px;">🏁 三天两夜 · 远征结束</h2>
+        <p style="color:#ffcc00;font-size:2.2rem;font-weight:900;margin:8px 0;">${score} 分</p>
+        <p style="color:#ccc;margin:4px 0;">最大连击：<span style="color:#ff6b35;">x${maxCombo}</span></p>
+        <p style="color:#ccc;margin:4px 0;">命中：<span style="color:#2ecc71;">${totalHits}</span> 次 | 未命中：<span style="color:#e74c3c;">${totalMisses}</span> 次</p>
+        <p style="color:#8899aa;margin:4px 0;">加成项：${upgradesHistory.length} 个</p>
+        <button id="btnRestart" style="margin-top:16px;padding:14px 36px;border:none;border-radius:50px;background:linear-gradient(135deg,#27ae60,#1e8449);color:white;font-size:1.1rem;font-weight:bold;cursor:pointer;box-shadow:0 6px 20px rgba(39,174,96,0.5);transition:0.2s;">🔄 再次出发</button>
+        <style>#btnRestart:active{transform:scale(0.94);}</style>
+      `;
+      document.body.appendChild(panel);
+      document.getElementById('btnRestart').addEventListener('click',()=>{
+        panel.remove(); resetGame(); updateScopeUI();updateUI();updateProgressTip();
+        for(let i=0;i<3;i++)setTimeout(()=>spawnTarget(),i*300);
+      });
+      if(scopeActive){ scopeActive=false; updateScopeUI(); }
+      if(comboTimer)clearTimeout(comboTimer); combo=0;comboTimer=null; updateUI();
+      updateProgressTip();
+    }
     function shoot(sx,sy){
-      if(shootCooldown>0||!scopeActive||upgradeActive)return;
+      if(shootCooldown>0||!scopeActive||upgradeActive||gameOver)return;
       shootCooldown=BASE_SHOOT_COOLDOWN*cooldownMultiplier; sfxShoot();
       const hitRadius=BASE_HIT_RADIUS*hitRadiusMultiplier;
       let hitTarget=null;
       const candidates=[...targets].filter(t=>t.alive&&!t.falling).sort((a,b)=>b.x-a.x);
       for(const t of candidates){ if(dist(sx,sy,t.x,t.y)<hitRadius+t.size*0.7){ hitTarget=t; break; } }
       if(hitTarget){
-        sfxHit(); hitTarget.alive=false;hitTarget.falling=true;hitTarget.fallSpeed=-60;hitTarget.fallRotation=(Math.random()-0.5)*300;
-        combo++; if(combo>maxCombo)maxCombo=combo; if(combo>=3)sfxCombo();
-        const bonus=Math.min(combo,8), earned=hitTarget.points*bonus; score+=earned; animateScore();
-        floatingTexts.push(new FloatingText(hitTarget.x,hitTarget.y-20,combo>=3?`+${earned} 🔥x${combo}`:`+${earned}`,combo>=4?'#ff4500':combo>=2?'#ffaa00':'#ffcc00'));
-        for(let i=0;i<22;i++) particles.push(new Particle(hitTarget.x,hitTarget.y,['rgb(255,200,50)','rgb(255,150,30)','rgb(255,100,20)'][i%3],2+Math.random()*5,0.4+Math.random()*0.6));
-        if(comboTimer)clearTimeout(comboTimer); comboTimer=setTimeout(()=>{combo=0;updateUI();comboTimer=null;},1800);
+        totalHits++;
+        if(hitTarget.isBomb){
+          sfxBomb(); hitTarget.alive=false;hitTarget.falling=true;hitTarget.fallSpeed=-60;hitTarget.fallRotation=(Math.random()-0.5)*300;
+          score=Math.max(0,score-50); removeLastUpgrade();
+          floatingTexts.push(new FloatingText(hitTarget.x,hitTarget.y-20,'💥 -50 移除加成','#ff4444'));
+          for(let i=0;i<28;i++) particles.push(new Particle(hitTarget.x,hitTarget.y,'rgb(255,80,80)',3+Math.random()*6,0.6+Math.random()*0.8));
+          if(comboTimer)clearTimeout(comboTimer); combo=0;comboTimer=null; recentHits=[];
+        }else{
+          sfxHit(); hitTarget.alive=false;hitTarget.falling=true;hitTarget.fallSpeed=-60;hitTarget.fallRotation=(Math.random()-0.5)*300;
+          combo++; if(combo>maxCombo)maxCombo=combo; if(combo>=3)sfxCombo();
+          const basePoints=isNight()?2:1; const earned=basePoints+extraPoints; score+=earned;
+          if(combo%5===0){ score+=5; floatingTexts.push(new FloatingText(hitTarget.x,hitTarget.y-40,'连击奖励 +5!','#ffaa00')); sfxBonus(); }
+          animateScore();
+          floatingTexts.push(new FloatingText(hitTarget.x,hitTarget.y-20,`+${earned}`,combo>=2?'#ffaa00':'#ffcc00'));
+          for(let i=0;i<22;i++) particles.push(new Particle(hitTarget.x,hitTarget.y,['rgb(255,200,50)','rgb(255,150,30)','rgb(255,100,20)'][i%3],2+Math.random()*5,0.4+Math.random()*0.6));
+          if(comboTimer)clearTimeout(comboTimer); comboTimer=setTimeout(()=>{combo=0;updateUI();comboTimer=null;},1800);
+          recentHits.push(hitTarget.typeIndex); if(recentHits.length>3)recentHits.shift();
+          if(recentHits.length===3&&recentHits[0]===recentHits[1]&&recentHits[1]===recentHits[2]){
+            score+=10; animateScore(); sfxBonus();
+            floatingTexts.push(new FloatingText(hitTarget.x,hitTarget.y-40,'同色奖励 +10!','#ffd700')); recentHits=[];
+          }
+        }
       }else{
-        sfxMiss(); if(comboTimer)clearTimeout(comboTimer); combo=0;comboTimer=null;
+        totalMisses++; sfxMiss();
+        if(comboTimer)clearTimeout(comboTimer); combo=0;comboTimer=null;
         floatingTexts.push(new FloatingText(sx,sy,'MISS','#8899aa'));
         for(let i=0;i<6;i++) particles.push(new Particle(sx,sy,'rgb(180,180,200)',1+Math.random()*2,0.2+Math.random()*0.3));
       }
-      updateUI(); if(score>=nextUpgradeScore&&!upgradeActive) showUpgradePanel();
+      updateUI();
+      if (score >= nextUpgradeScore && !upgradeActive && !gameOver) {
+        showUpgradePanel();
+      }
     }
 
     function drawBackground(ctx){
@@ -525,43 +723,96 @@
       if(shootCooldown>0){ const r=shootCooldown/(BASE_SHOOT_COOLDOWN*cooldownMultiplier); ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(sx,sy,40,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-r));ctx.stroke(); }
       const cr=(BASE_HIT_RADIUS*hitRadiusMultiplier).toFixed(1);
       const cc=(BASE_SHOOT_COOLDOWN*cooldownMultiplier).toFixed(2);
+      const baseShow=isNight()?2:1;
       ctx.fillStyle='rgba(255,255,255,0.9)';ctx.font='bold 13px "PingFang SC","Microsoft YaHei",sans-serif';ctx.textAlign='center';
-      ctx.fillText(`命中范围: ${cr}  |  冷却: ${cc}s  |  得分: ${BASE_POINTS+extraPoints}`, GAME_WIDTH/2, GAME_HEIGHT-30);
+      ctx.fillText(`命中范围: ${cr}  |  冷却: ${cc}s  |  得分: ${baseShow+extraPoints}`, GAME_WIDTH/2, GAME_HEIGHT-30);
       ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='11px "PingFang SC","Microsoft YaHei",sans-serif';ctx.fillText('移动准星 · 点击射击', GAME_WIDTH/2, GAME_HEIGHT-12);
+    }
+
+    function drawSlots(ctx) {
+      const startX=32,startY=GAME_HEIGHT-75,spacing=58;
+      for(let i=0;i<3;i++){
+        const x=startX+i*spacing,y=startY;
+        if(i<recentHits.length){
+          const typeIdx=recentHits[i]; const type=TARGET_TYPES[typeIdx];
+          drawUFO(ctx,x,y,SLOT_SIZE,type.color,type.lightColor,1,typeIdx===3);
+        }else{
+          ctx.save();ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=2;ctx.setLineDash([4,3]);
+          ctx.beginPath();ctx.ellipse(x,y,SLOT_SIZE*0.44,SLOT_SIZE*0.12,0,0,Math.PI*2);ctx.stroke();
+          ctx.beginPath();ctx.ellipse(x,y-SLOT_SIZE*0.08,SLOT_SIZE*0.3,SLOT_SIZE*0.22,0,Math.PI,Math.PI*2);ctx.stroke();
+          ctx.setLineDash([]);ctx.restore();
+        }
+      }
+      ctx.fillStyle='rgba(255,255,255,0.6)';ctx.font='10px "PingFang SC","Microsoft YaHei",sans-serif';ctx.textAlign='left';
+      ctx.fillText('击毁记录',startX-2,startY-32);
+    }
+
+    function drawGameTips(ctx){
+      if(!gameTip)return;
+      const alpha=Math.min(1,gameTip.life/gameTip.maxLife)*0.85;
+      ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle='#ffffff';
+      ctx.font='bold 24px "PingFang SC","Microsoft YaHei",sans-serif';ctx.textAlign='center';
+      ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=10;
+      ctx.fillText(gameTip.text,gameTip.x,gameTip.y);ctx.restore();
     }
 
     let lastTime=performance.now();
     function gameLoop(ts){
       let dt=(ts-lastTime)/1000; if(dt<=0)dt=0.016; if(dt>0.1)dt=0.1; lastTime=ts;
-      dayTime=(dayTime+dt*DAY_SPEED)%1;
+      gameTime+=dt;
+
+      if(!gameOver){
+        totalDayProgress+=dt*DAY_SPEED;
+        if(totalDayProgress>=MAX_GAME_DURATION){ showGameOverPanel(); }
+        updateProgressTip();
+      }
+
+      const prevNF=getNightFactor();
+      dayTime=(0.3+totalDayProgress)%1;
+      const currNF=getNightFactor();
+      if(!nightTipShown&&prevNF<=0.5&&currNF>0.5){
+        nightTipShown=true;
+        gameTip={text:'晚上击中会得到更高的分数',life:4,maxLife:4,x:GAME_WIDTH/2,y:GAME_HEIGHT/2};
+      }
+      if(gameTip){ gameTip.life-=dt; if(gameTip.life<=0)gameTip=null; }
+
       indicator.style.left=(dayTime*100)+'%';
-      if(upgradeActive){ requestAnimationFrame(gameLoop); return; }
+      if(upgradeActive||gameOver){ requestAnimationFrame(gameLoop); return; }
       if(shootCooldown>0){ shootCooldown-=dt; if(shootCooldown<0)shootCooldown=0; }
+
+      const spawnInterval=Math.max(0.15,1.2-gameTime*0.025);
       spawnAccum+=dt;
-      if(spawnAccum>=spawnInterval+(Math.random()-0.5)*0.6 && targets.filter(t=>t.alive&&!t.falling).length<8){ spawnAccum=0; spawnTarget(); }
+      const activeCount=targets.filter(t=>t.alive&&!t.falling).length;
+      if(spawnAccum>=spawnInterval&&activeCount<10||activeCount===0){
+        spawnAccum=0; spawnTarget();
+        if(activeCount<2)spawnTarget();
+      }
+
       targets=targets.filter(t=>t.update(dt)); particles=particles.filter(p=>p.update(dt));
       floatingTexts=floatingTexts.filter(ft=>ft.update(dt)); clouds.forEach(c=>c.update(dt));
       ctx.clearRect(0,0,GAME_WIDTH,GAME_HEIGHT);
-      drawBackground(ctx); clouds.forEach(c=>c.draw(ctx)); targets.forEach(t=>t.draw(ctx));
-      particles.forEach(p=>p.draw(ctx)); floatingTexts.forEach(ft=>ft.draw(ctx)); drawScope(ctx);
+      drawBackground(ctx); drawGameTips(ctx);
+      clouds.forEach(c=>c.draw(ctx)); targets.forEach(t=>t.draw(ctx));
+      particles.forEach(p=>p.draw(ctx)); floatingTexts.forEach(ft=>ft.draw(ctx));
+      drawSlots(ctx); drawScope(ctx);
       requestAnimationFrame(gameLoop);
     }
 
-    gameContainer.addEventListener('mousemove',e=>{ if(!scopeActive||upgradeActive)return; const p=getCanvasPos(e); scopeX=p.x;scopeY=p.y; });
-    gameContainer.addEventListener('click',e=>{ if(!scopeActive||upgradeActive)return; const p=getCanvasPos(e); scopeX=p.x;scopeY=p.y; shoot(scopeX,scopeY); });
-    gameContainer.addEventListener('touchstart',e=>{ if(!scopeActive||upgradeActive)return; if(e.touches.length===1){ const p=getTouchPos(e.touches[0]); pointerStartX=p.x;pointerStartY=p.y;scopeX=p.x;scopeY=p.y;pointerMoved=false;isPointerDown=true; } e.preventDefault(); },{passive:false});
-    gameContainer.addEventListener('touchmove',e=>{ if(!scopeActive||upgradeActive||!isPointerDown)return; if(e.touches.length===1){ const p=getTouchPos(e.touches[0]); if(dist(pointerStartX,pointerStartY,p.x,p.y)>TAP_THRESHOLD)pointerMoved=true; scopeX=p.x;scopeY=p.y; } e.preventDefault(); },{passive:false});
-    gameContainer.addEventListener('touchend',e=>{ if(!scopeActive||upgradeActive)return; if(!pointerMoved&&isPointerDown)shoot(scopeX,scopeY); isPointerDown=false;pointerMoved=false;e.preventDefault(); },{passive:false});
+    gameContainer.addEventListener('mousemove',e=>{ if(!scopeActive||upgradeActive||gameOver)return; const p=getCanvasPos(e); scopeX=p.x;scopeY=p.y; });
+    gameContainer.addEventListener('click',e=>{ if(!scopeActive||upgradeActive||gameOver)return; const p=getCanvasPos(e); scopeX=p.x;scopeY=p.y; shoot(scopeX,scopeY); });
+    gameContainer.addEventListener('touchstart',e=>{ if(!scopeActive||upgradeActive||gameOver)return; if(e.touches.length===1){ const p=getTouchPos(e.touches[0]); pointerStartX=p.x;pointerStartY=p.y;scopeX=p.x;scopeY=p.y;pointerMoved=false;isPointerDown=true; } e.preventDefault(); },{passive:false});
+    gameContainer.addEventListener('touchmove',e=>{ if(!scopeActive||upgradeActive||gameOver||!isPointerDown)return; if(e.touches.length===1){ const p=getTouchPos(e.touches[0]); if(dist(pointerStartX,pointerStartY,p.x,p.y)>TAP_THRESHOLD)pointerMoved=true; scopeX=p.x;scopeY=p.y; } e.preventDefault(); },{passive:false});
+    gameContainer.addEventListener('touchend',e=>{ if(!scopeActive||upgradeActive||gameOver)return; if(!pointerMoved&&isPointerDown)shoot(scopeX,scopeY); isPointerDown=false;pointerMoved=false;e.preventDefault(); },{passive:false});
     gameContainer.addEventListener('touchcancel',()=>{ isPointerDown=false;pointerMoved=false; });
-    btnScope.addEventListener('click',e=>{ e.preventDefault();e.stopPropagation(); if(upgradeActive)return; scopeActive=!scopeActive; if(!scopeActive){ if(comboTimer)clearTimeout(comboTimer);combo=0;comboTimer=null;updateUI(); } else{ scopeX=GAME_WIDTH/2;scopeY=GAME_HEIGHT/2-20;shootCooldown=0; } updateScopeUI(); });
+    btnScope.addEventListener('click',e=>{ e.preventDefault();e.stopPropagation(); if(upgradeActive||gameOver)return; scopeActive=!scopeActive; if(!scopeActive){ if(comboTimer)clearTimeout(comboTimer);combo=0;comboTimer=null;updateUI(); } else{ scopeX=GAME_WIDTH/2;scopeY=GAME_HEIGHT/2-20;shootCooldown=0; } updateScopeUI(); });
     btnScope.addEventListener('touchstart',e=>e.stopPropagation());
     window.addEventListener('resize',()=>{ resizeCanvas(); const r=canvas.getBoundingClientRect(); canvasOffsetX=r.left;canvasOffsetY=r.top; });
     document.addEventListener('dblclick',e=>{ if(gameContainer.contains(e.target)||btnScope.contains(e.target))e.preventDefault(); },{passive:false});
-    document.addEventListener('keydown',e=>{ if(e.key===' '||e.code==='Space'){ e.preventDefault(); if(upgradeActive)return; if(!scopeActive){ scopeActive=true;scopeX=GAME_WIDTH/2;scopeY=GAME_HEIGHT/2-20;shootCooldown=0;updateScopeUI(); } else shoot(scopeX,scopeY); } else if(e.key==='Escape'){ if(scopeActive&&!upgradeActive){ scopeActive=false; if(comboTimer)clearTimeout(comboTimer);combo=0;comboTimer=null;updateUI();updateScopeUI(); } } });
+    document.addEventListener('keydown',e=>{ if(e.key===' '||e.code==='Space'){ e.preventDefault(); if(upgradeActive||gameOver)return; if(!scopeActive){ scopeActive=true;scopeX=GAME_WIDTH/2;scopeY=GAME_HEIGHT/2-20;shootCooldown=0;updateScopeUI(); } else shoot(scopeX,scopeY); } else if(e.key==='Escape'){ if(scopeActive&&!upgradeActive&&!gameOver){ scopeActive=false; if(comboTimer)clearTimeout(comboTimer);combo=0;comboTimer=null;updateUI();updateScopeUI(); } } });
 
-    function init(){ resizeCanvas(); initClouds(); resetGame(); updateScopeUI();updateUI(); for(let i=0;i<3;i++)setTimeout(()=>spawnTarget(),i*400); requestAnimationFrame(gameLoop); }
+    function init(){ resizeCanvas(); initClouds(); resetGame(); updateScopeUI();updateUI();updateProgressTip(); for(let i=0;i<3;i++)setTimeout(()=>spawnTarget(),i*300); requestAnimationFrame(gameLoop); }
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init); else init();
-    console.log('🛸 昼夜飞碟版 · 丝滑过渡 · 进度条 · 强化音效');
+    console.log('🛸 天空猎手 · 三天两夜 · 动态升级阈值');
   })();
 </script>
 </body>
